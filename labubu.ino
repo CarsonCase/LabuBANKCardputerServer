@@ -4,9 +4,19 @@
 #include <ArduinoJson.h>
 #include "ethers.h"
 #include "uECC.h"
+#include <M5Cardputer.h>
 
 const char* ssid = "";
 const char* password = "";
+
+void showMainTitle() {
+    M5Cardputer.Display.drawRoundRect(10, 10, 220, 30, 5, TFT_DARKCYAN); // Around main title
+    M5Cardputer.Display.setTextColor(TFT_DARKCYAN);
+    M5Cardputer.Display.setTextSize(2);
+    M5Cardputer.Display.setCursor(19, 18);
+    M5Cardputer.Display.printf("LabuBANK");
+}
+
 
 WebServer server(80);
 
@@ -185,6 +195,25 @@ int esp_random(uint8_t *dest, unsigned size) {
   return 1;
 }
 
+// Play a custom melody
+void playSuccessSound() {
+  // Mario theme intro
+  M5Cardputer.Speaker.tone(659, 125);  // E5
+  delay(125);
+  M5Cardputer.Speaker.tone(659, 125);  // E5
+  delay(125);
+  M5Cardputer.Speaker.tone(659, 125);  // E5
+  delay(125);
+  M5Cardputer.Speaker.tone(523, 125);  // C5
+  delay(125);
+  M5Cardputer.Speaker.tone(659, 125);  // E5
+  delay(125);
+  M5Cardputer.Speaker.tone(784, 250);  // G5
+  delay(250);
+  M5Cardputer.Speaker.end();
+}
+
+
 String buildAndSignLegacyTx(const String &to, const String &value, const String &data, const String &gasLimit, const String &gasPrice, const String &nonce, const String &chainIdStr, String &r_hex, String &s_hex, String &v0_hex, String &v1_hex, String &rawTx_v0, String &rawTx_v1, String &signingPayloadHex) {
   uint8_t nonce_bytes[32]; size_t nonce_len = 0; decStringToBytes(nonce, nonce_bytes, &nonce_len);
   uint8_t gasPrice_bytes[32]; size_t gasPrice_len = 0; decStringToBytes(gasPrice, gasPrice_bytes, &gasPrice_len);
@@ -337,6 +366,7 @@ void handleSign() {
     response["s"] = String("0x") + s_hex;
     response["signingPayload"] = unsignedRlp;
     // v cannot be derived here without recovery; client should compute recId and rawTx
+    playSuccessSound();
 
   } else {
     // Build EIP-155 preimage, sign, and return rawTx candidates
@@ -361,6 +391,7 @@ void handleSign() {
     response["transactionData"]["chainId"] = chainId;
     response["rawTransaction"] = rawTx_v0; // default to recId 0
     response["signingPayload"] = String("0x") + signingPayloadHex;
+    playSuccessSound();
   }
 
   String responseStr; serializeJson(response, responseStr);
@@ -369,6 +400,14 @@ void handleSign() {
 
 void setup() {
   Serial.begin(115200);
+  
+  // Initialize M5Cardputer
+  auto cfg = M5.config();
+  M5Cardputer.begin(cfg);
+  
+  // Clear display and show title
+  M5Cardputer.Display.clear();
+  showMainTitle();
 
   randomSeed(analogRead(0));
   uECC_set_rng(&esp_random);
@@ -377,11 +416,22 @@ void setup() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
     Serial.println("Connecting to WiFi...");
+    // Keep title visible during WiFi connection
+    M5Cardputer.Display.clear();
+    showMainTitle();
   }
 
   Serial.println("Connected to WiFi");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+
+  // Show IP address on display
+  M5Cardputer.Display.clear();
+  showMainTitle();
+  M5Cardputer.Display.setTextColor(TFT_WHITE);
+  M5Cardputer.Display.setTextSize(1);
+  M5Cardputer.Display.setCursor(10, 50);
+  M5Cardputer.Display.printf("IP: %s", WiFi.localIP().toString().c_str());
 
   server.on("/", handleRoot);
   server.on("/sign", handleSign);
@@ -391,5 +441,19 @@ void setup() {
 }
 
 void loop() {
+  M5Cardputer.update(); // Handle M5Cardputer updates
+  
+  // Refresh display periodically to keep title visible
+  static unsigned long lastDisplayUpdate = 0;
+  if (millis() - lastDisplayUpdate > 5000) { // Every 5 seconds
+    M5Cardputer.Display.clear();
+    showMainTitle();
+    M5Cardputer.Display.setTextColor(TFT_WHITE);
+    M5Cardputer.Display.setTextSize(1);
+    M5Cardputer.Display.setCursor(10, 50);
+    M5Cardputer.Display.printf("IP: %s", WiFi.localIP().toString().c_str());
+    lastDisplayUpdate = millis();
+  }
+  
   server.handleClient();
 }
