@@ -16,16 +16,6 @@ WebServer server(80);
 // 0x94544835Cf97c631f101c5f538787fE14E2E04f6
 const char* privateKeyHex = "";
 
-void handleRoot() {
-  String html = "<!DOCTYPE html><html><head><title>Ethereum Signing Server</title></head>";
-  html += "<body><h1>Ethereum Signing Server</h1>";
-  html += "<p>POST to /sign with JSON payload containing transaction data</p>";
-  html += "<p>Fields: to(0x..), value(wei as decimal), data(0x..), gasLimit(decimal), gasPrice(decimal), nonce(decimal), chainId(decimal)</p>";
-  html += "<p>Alternatively provide unsignedRlp (0x...) for a pre-built EIP-155 signable payload [nonce,gasPrice,gasLimit,to,value,data,chainId,0,0]</p>";
-  html += "</body></html>";
-  server.send(200, "text/html", html);
-}
-
 void showMainTitle() {
     M5Cardputer.Display.drawRoundRect(10, 10, 220, 30, 5, TFT_DARKCYAN); // Around main title
     M5Cardputer.Display.setTextColor(TFT_DARKCYAN);
@@ -468,7 +458,6 @@ void setup() {
   M5Cardputer.Display.setCursor(10, 50);
   M5Cardputer.Display.printf("IP: %s", WiFi.localIP().toString().c_str());
 
-  server.on("/", handleRoot);
   server.on("/sign", handleSign);
 
   server.begin();
