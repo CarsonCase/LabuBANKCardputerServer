@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include "ethers.h"
 #include "uECC.h"
+#include <M5Cardputer.h>
 
 const char* ssid = "";
 const char* password = "";
@@ -12,8 +13,8 @@ WebServer server(80);
 
 // Hardcoded private key (32 bytes in hex format)
 // WARNING: In production, store this securely!
-// 0xFCAd0B19bB29D4674531d6f115237E16AfCE377c
-const char* privateKeyHex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+// 0x94544835Cf97c631f101c5f538787fE14E2E04f6
+const char* privateKeyHex = "";
 
 void handleRoot() {
   String html = "<!DOCTYPE html><html><head><title>Ethereum Signing Server</title></head>";
@@ -24,6 +25,33 @@ void handleRoot() {
   html += "</body></html>";
   server.send(200, "text/html", html);
 }
+
+void showMainTitle() {
+    M5Cardputer.Display.drawRoundRect(10, 10, 220, 30, 5, TFT_DARKCYAN); // Around main title
+    M5Cardputer.Display.setTextColor(TFT_DARKCYAN);
+    M5Cardputer.Display.setTextSize(2);
+    M5Cardputer.Display.setCursor(19, 18);
+    M5Cardputer.Display.printf("LabuBANK");
+}
+
+// Play a custom melody
+void playSuccessSound() {
+  // Mario theme intro
+  M5Cardputer.Speaker.tone(659, 125);  // E5
+  delay(125);
+  M5Cardputer.Speaker.tone(659, 125);  // E5
+  delay(125);
+  M5Cardputer.Speaker.tone(659, 125);  // E5
+  delay(125);
+  M5Cardputer.Speaker.tone(523, 125);  // C5
+  delay(125);
+  M5Cardputer.Speaker.tone(659, 125);  // E5
+  delay(125);
+  M5Cardputer.Speaker.tone(784, 250);  // G5
+  delay(250);
+  M5Cardputer.Speaker.end();
+}
+
 
 static inline uint8_t hexNib(char c) {
   if (c >= '0' && c <= '9') return (uint8_t)(c - '0');
@@ -350,8 +378,7 @@ void handleSign() {
 
     response["r"] = String("0x") + r_hex;
     response["s"] = String("0x") + s_hex;
-    response["v0"] = String("0x") + v0_hex;
-    response["v1"] = String("0x") + v1_hex;
+    response["v"] = String("0x") + v0_hex;
     response["signature"] = String(r_hex) + String(s_hex);
     response["transactionData"]["nonce"] = nonce;
     response["transactionData"]["gasPrice"] = gasPrice;
@@ -361,16 +388,23 @@ void handleSign() {
     response["transactionData"]["data"] = data;
     response["transactionData"]["chainId"] = chainId;
     response["rawTransaction"] = rawTx_v0; // default to recId 0
-    response["rawTransactionAlt"] = rawTx_v1; // alternate recId 1
     response["signingPayload"] = String("0x") + signingPayloadHex;
   }
 
   String responseStr; serializeJson(response, responseStr);
+  playSuccessSound();
   server.send(200, "application/json", responseStr);
 }
 
 void setup() {
   Serial.begin(115200);
+
+  // Initialize M5Cardputer
+  auto cfg = M5.config();
+  M5Cardputer.begin(cfg);
+  
+  // Clear display and show title
+  M5Cardputer.Display.clear();
 
   randomSeed(analogRead(0));
   uECC_set_rng(&esp_random);
@@ -384,6 +418,14 @@ void setup() {
   Serial.println("Connected to WiFi");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+
+  // Show IP address on display
+  M5Cardputer.Display.clear();
+  showMainTitle();
+  M5Cardputer.Display.setTextColor(TFT_WHITE);
+  M5Cardputer.Display.setTextSize(1);
+  M5Cardputer.Display.setCursor(10, 50);
+  M5Cardputer.Display.printf("IP: %s", WiFi.localIP().toString().c_str());
 
   server.on("/", handleRoot);
   server.on("/sign", handleSign);
