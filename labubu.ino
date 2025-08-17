@@ -313,6 +313,41 @@ String buildAndSignLegacyTx(const String &to, const String &value, const String 
   return String("ok");
 }
 
+void waitForConfirmation(const char* message) {
+  M5Cardputer.Display.clear();
+  showMainTitle();
+  
+  // Display confirmation message
+  M5Cardputer.Display.setTextColor(TFT_WHITE);
+  M5Cardputer.Display.setTextSize(1);
+  M5Cardputer.Display.setCursor(10, 50);
+  M5Cardputer.Display.printf("Confirm: %s", message);
+  
+  // Display instruction
+  M5Cardputer.Display.setCursor(10, 70);
+  
+  // Wait for Enter key
+  while (true) {
+    M5Cardputer.update();
+    
+    if (M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER)) {
+      // Small delay to debounce
+      delay(100);
+      break;
+    }
+    
+    delay(50);
+  }
+  
+  // Clear the confirmation message
+  M5Cardputer.Display.clear();
+  showMainTitle();
+  M5Cardputer.Display.setTextColor(TFT_WHITE);
+  M5Cardputer.Display.setTextSize(1);
+  M5Cardputer.Display.setCursor(10, 50);
+  M5Cardputer.Display.printf("IP: %s", WiFi.localIP().toString().c_str());
+}
+
 void handleSign() {
   if (server.method() != HTTP_POST) {
     server.send(405, "application/json", "{\"error\":\"Method not allowed\"}");
@@ -326,6 +361,12 @@ void handleSign() {
     server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
     return;
   }
+
+  String confirmMsg = String("Confirm transaction?\n\nTo: ") + doc["to"].as<String>() + 
+                     String("\n\n\nValue: ") + doc["value"].as<String>() + 
+                     String("\n\nData: ") + doc["data"].as<String>() +
+                     String("\n\Press Enter to Continue");
+  waitForConfirmation(confirmMsg.c_str());
 
   String unsignedRlp = doc["unsignedRlp"] | ""; // optional 0x... preimage like Firefly
   String to = doc["to"] | "";
