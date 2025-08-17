@@ -24,6 +24,17 @@ void showMainTitle() {
     M5Cardputer.Display.printf("LabuBANK");
 }
 
+void playPingSound() {
+  // Pleasant notification chime - ascending notes
+  M5Cardputer.Speaker.tone(523, 80);   // C5 - clean start
+  delay(80);
+  M5Cardputer.Speaker.tone(659, 120);  // E5 - bright middle
+  delay(60);
+  M5Cardputer.Speaker.tone(784, 160);  // G5 - warm finish
+  delay(80);
+  M5Cardputer.Speaker.end();
+}
+
 // Play a custom melody
 void playSuccessSound() {
   // Mario theme intro
@@ -338,7 +349,22 @@ void waitForConfirmation(const char* message) {
   M5Cardputer.Display.printf("IP: %s", WiFi.localIP().toString().c_str());
 }
 
+void handlePreflight() {
+  Serial.println("Preflight request received");
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+  server.send(200, "text/plain", "");
+}
+
 void handleSign() {
+  Serial.println("Sign request received");
+  playPingSound();
+  // Add CORS headers to all responses
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+
   if (server.method() != HTTP_POST) {
     server.send(405, "application/json", "{\"error\":\"Method not allowed\"}");
     return;
@@ -380,12 +406,14 @@ void handleSign() {
       server.send(400, "application/json", "{\"error\":\"unsignedRlp invalid\"}");
       return;
     }
+
     uint8_t hash[32]; ethers_keccak256(preimage, (uint16_t)preimageLen, hash);
     uint8_t signature[64]; uECC_set_rng(&esp_random);
     if (!ethers_sign(privateKey, hash, signature)) {
       server.send(500, "application/json", "{\"error\":\"Signing failed\"}");
       return;
     }
+
     canonicalizeS(signature);
     String sigHex = bytesToHexString(signature, 64);
     String r_hex = sigHex.substring(0, 64);
@@ -458,7 +486,9 @@ void setup() {
   M5Cardputer.Display.setCursor(10, 50);
   M5Cardputer.Display.printf("IP: %s", WiFi.localIP().toString().c_str());
 
-  server.on("/sign", handleSign);
+  // Add OPTIONS handler for CORS preflight
+  server.on("/sign", HTTP_OPTIONS, handlePreflight);
+  server.on("/sign", HTTP_POST, handleSign);
 
   server.begin();
   Serial.println("Ethereum Signing Server started");
